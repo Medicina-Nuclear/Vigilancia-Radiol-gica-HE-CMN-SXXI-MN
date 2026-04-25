@@ -274,26 +274,56 @@
             const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([buffer])); link.download = `Vigilancia_24Puntos_${getFechaLocal()}.xlsx`; link.click();
         }
 
-        function exportarImagen() { html2canvas($('captura-zona')).then(canvas => { const link = document.createElement('a'); link.download = `Captura_Vigilancia_${getFechaLocal()}.png`; link.href = canvas.toDataURL(); link.click(); }); }
+      function exportarImagen() { 
+            const zona = $('captura-zona');
+            // Forzamos un ancho mínimo para que la imagen capte todas las columnas en el celular
+            const originalWidth = zona.style.width;
+            zona.style.width = "900px"; 
 
-    async function cargarDatosDesdeNube() {
+            html2canvas(zona, {
+                scale: 2, // Mejora la calidad de la imagen
+                logging: false,
+                useCORS: true
+            }).then(canvas => { 
+                zona.style.width = originalWidth; // Restauramos el ancho original
+                const link = document.createElement('a'); 
+                link.download = `Captura_Vigilancia_${getFechaLocal()}.png`; 
+                link.href = canvas.toDataURL("image/png"); 
+                link.click(); 
+            }); 
+        }
+
+        async function cargarDatosDesdeNube() {
             try {
                 const response = await fetch(URL_NUBE);
                 const data = await response.json();
                 
                 if (data && data.length > 1) {
-                    const filasNube = data.slice(1).map(fila => ({
-                        vuelta: fila[0],
-                        fecha: fila[1],
-                        hora: fila[2],
-                        punto: fila[3],
-                        ubicacion: fila[4],
-                        mr: fila[5],
-                        mr_1m: fila[6],
-                        cpm: fila[7],
-                        as_s: fila[8],
-                        estado: fila[9]
-                    }));
+                    const filasNube = data.slice(1).map(fila => {
+                        // Limpieza de Fecha: Si Google manda un objeto Date, lo formateamos
+                        let fechaLimpia = fila[1];
+                        if (fechaLimpia.includes('T')) fechaLimpia = fechaLimpia.split('T')[0].split('-').reverse().join('-');
+                        
+                        // Limpieza de Hora: Tomamos solo HH:mm
+                        let horaLimpia = fila[2];
+                        if (horaLimpia.includes(':')) {
+                            const partes = horaLimpia.split(':');
+                            horaLimpia = `${partes[0].padStart(2, '0')}:${partes[1].padStart(2, '0')}`;
+                        }
+
+                        return {
+                            vuelta: fila[0],
+                            fecha: fechaLimpia,
+                            hora: horaLimpia,
+                            punto: fila[3],
+                            ubicacion: fila[4],
+                            mr: fila[5],
+                            mr_1m: fila[6],
+                            cpm: fila[7],
+                            as_s: fila[8],
+                            estado: fila[9]
+                        };
+                    });
                     
                     state.rows = filasNube;
                     render();
@@ -314,7 +344,8 @@
             }
             
             render();
-            cargarDatosDesdeNube(); // Esta línea es la que hace la magia para tus colaboradores
+            // Priorizamos la carga de la nube para corregir formatos de colaboradores
+            cargarDatosDesdeNube();
         };
     </script>
 </body>

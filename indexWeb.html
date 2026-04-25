@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vigilancia Radiológica - NOM-008-NUCL-2024</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        :root { 
+            --primary: #0284c7; 
+            --normal: #22c55e; --bajo: #eab308; --moderado: #f97316; --alto: #ef4444;
+            --bg: #f8fafc; 
+        }
+        body { font-family: sans-serif; background: var(--bg); margin: 0; padding: 15px; color: #1e293b; }
+        header { background: var(--primary); color: white; padding: 15px; border-radius: 12px; text-align: center; margin-bottom: 15px; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 15px; }
+        .hidden { display: none !important; }
+        
+        .ref-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; margin-top: 10px; }
+        .ref-table td, .ref-table th { padding: 8px; border: 1px solid #e2e8f0; text-align: center; }
+        .ref-header { background: #f1f5f9; font-weight: bold; }
+
+        .stats-container { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 15px; }
+        .stat-card { padding: 10px; border-radius: 8px; text-align: center; color: white; font-weight: bold; font-size: 0.9rem; }
+
+        input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+        input:disabled { background-color: #f1f5f9; cursor: not-allowed; color: #64748b; }
+        button { width: 100%; padding: 12px; margin: 8px 0; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-main { background: var(--primary); color: white; }
+        
+        #captura-zona { background: white; padding: 10px; border-radius: 8px; overflow-x: auto; }
+
+        .row { 
+            display: flex; align-items: center; padding: 8px 12px; border-radius: 8px; margin-bottom: 4px; 
+            border-left: 6px solid #cbd5e1; background: #fff; border: 1px solid #e2e8f0; gap: 10px; min-width: 850px; 
+        }
+        .col-info { flex: 2; min-width: 180px; }
+        .col-data { flex: 1; text-align: center; font-weight: bold; font-size: 0.85rem; border-left: 1px solid #e2e8f0; }
+        
+        .normal { border-left-color: var(--normal); background: #f0fdf4; } 
+        .bajo { border-left-color: var(--bajo); background: #fefce8; }
+        .moderado { border-left-color: var(--moderado); background: #fff7ed; }
+        .alto { border-left-color: var(--alto); background: #fef2f2; }
+        
+        .badge-1m { display: inline-block; padding: 2px 8px; border-radius: 4px; color: white; font-weight: bold; }
+        .bg-v { background: var(--normal); }
+        .bg-a { background: var(--bajo); color: #854d0e; }
+        .bg-n { background: var(--moderado); }
+        .bg-r { background: var(--alto); }
+
+        .vuelta-badge { background: #1e293b; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; margin-right: 5px; }
+        .unit-label { display: block; font-size: 0.65rem; color: #64748b; font-weight: normal; margin-top: 2px; }
+        .timestamp { display: block; font-size: 0.65rem; color: #0284c7; font-weight: bold; margin-top: 2px; }
+        
+        .table-header {
+            background: #f1f5f9; font-weight: bold; font-size: 0.75rem;
+            border-left: 6px solid #64748b; position: sticky; top: 0; z-index: 10;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>☢️ Medicina Nuclear</h1>
+        <p>Vigilancia NOM-008-NUCL-2024</p>
+    </header>
+
+    <main id="auth-section" class="card">
+        <button style="background:white; color:var(--primary); border:2px solid var(--primary);" onclick="accesoConsulta()">🔍 Modo Consulta</button>
+        <div style="margin-top:20px;">
+            <p style="font-size:0.75rem; font-weight:bold; color:#64748b; margin-bottom:5px;">Niveles de Vigilancia (Bq/cm²):</p>
+            <table class="ref-table">
+                <tr class="ref-header"><td>Nivel</td><td>Bq/cm²</td><td>Estado</td></tr>
+                <tr><td style="color:var(--normal)">Normal</td><td>< 0.4</td><td>Límite Base</td></tr>
+                <tr><td style="color:var(--bajo)">Bajo</td><td>0.4 - 4.0</td><td>1x a 10x</td></tr>
+                <tr><td style="color:var(--moderado)">Mod.</td><td>4.0 - 40.0</td><td>10x a 100x</td></tr>
+                <tr><td style="color:var(--alto)">Alto</td><td>> 40.0</td><td>> 100x</td></tr>
+            </table>
+        </div>
+        <hr style="margin:20px 0; border:0; border-top:1px solid #e2e8f0;">
+        <input type="password" id="pin_input" placeholder="PIN Operador">
+        <button class="btn-main" onclick="login()">Ingresar como Administrador</button>
+    </main>
+
+    <main id="app-section" class="card hidden">
+        <div id="controles-operador" class="hidden">
+            <h3 id="point-display">📍 Área: Cargando...</h3>
+            <input type="text" id="ubicacion" placeholder="Ubicación específica">
+            <input type="number" id="cpm" placeholder="Tasa de conteo (CPM)" oninput="calcularTasaExposicion()">
+            <input type="number" id="mr" step="0.01" placeholder="mR/h (Autocalculado)" disabled>
+            <button class="btn-main" style="background:var(--normal)" onclick="save()">💾 Registrar punto</button>
+        </div>
+
+        <div id="stats-section">
+            <div class="stats-container">
+                <div class="stat-card" style="background:var(--normal)">Normal: <span id="count-normal">0</span></div>
+                <div class="stat-card" style="background:var(--bajo)">Bajo: <span id="count-bajo">0</span></div>
+                <div class="stat-card" style="background:var(--moderado)">Moderado: <span id="count-moderado">0</span></div>
+                <div class="stat-card" style="background:var(--alto)">Alto: <span id="count-alto">0</span></div>
+            </div>
+            <div id="tools-section" class="hidden" style="margin-top:15px;">
+                <button id="btn-excel" class="btn-main hidden" style="background:#10b981;" onclick="exportarExcel()">📥 Descargar reporte Excel</button>
+                <button id="btn-png" class="btn-main" style="background:#6366f1;" onclick="exportarImagen()">🖼️ Generar imagen PNG</button>
+            </div>
+        </div>
+
+        <div id="captura-zona" style="margin-top:20px;">
+            <div id="rows-container"></div>
+        </div>
+        
+        <div style="display:flex; gap:10px; margin-top:20px;">
+            <button id="btn-reset-admin" onclick="resetRuta()" style="background:#f1f5f9; color:#ef4444; flex:1;" class="hidden">⚠️ Reiniciar todo</button>
+            <button onclick="salirApp()" style="background:#94a3b8; color:white; flex:1;">🚪 Salir</button>
+        </div>
+    </main>
+
+    <script>
+        const FONDO = 60; 
+        const AREA_DETECTOR = 15.51; 
+        const EFICIENCIA = 0.01;
+        const CONSTANTE_MRH = 3300; 
+        const DIST_MEDIDA = 0.05; 
+        const DIST_PROYECTADA = 1.0; 
+        const URL_NUBE = "https://script.google.com/macros/s/AKfycbxKxigRv1l4yxCC6vxXYfcHGo67CS6ck8A7SK4AdU9UdKVVOkdEiBR95aVgNCMdqRnj/exec";
+
+        const PUNTOS = [
+            'Sala 1 Camilla', 'Sala 1 Piso', 'Sala 1 Basura',
+            'Sala 2 Camilla', 'Sala 2 Piso', 'Sala 2 Basura',
+            'Sala 3 Camilla', 'Sala 3 Piso', 'Sala 3 Basura',
+            'Sala 4 Camilla', 'Sala 4 Piso', 'Sala 4 Basura',
+            'Sala 5 Camilla', 'Sala 5 Piso', 'Sala 5 Basura',
+            'Sala 6 Camilla', 'Sala 6 Piso', 'Sala 6 Basura',
+            'Inyección Silla', 'Inyección Piso', 'Inyección Mesa',
+            'Pasillo', 'Tánico', 'Otros'
+        ];
+
+        let state = { idx: 0, rows: [], esAdmin: false };
+        const $ = i => document.getElementById(i);
+
+        function login() { if ($('pin_input').value === '0197') { state.esAdmin = true; sessionStorage.setItem('mn_admin_active', 'true'); $('auth-section').classList.add('hidden'); $('app-section').classList.remove('hidden'); render(); } else alert("PIN Incorrecto"); }
+
+        function getClase1m(v) {
+            const val = parseFloat(v);
+            if (val >= 2.5) return 'bg-r';
+            if (val >= 1.0) return 'bg-n';
+            if (val >= 0.25) return 'bg-a';
+            return 'bg-v';
+        }
+
+        function calcularTasaExposicion() {
+            const valorCPM = parseFloat($('cpm').value || 0);
+            $('mr').value = (valorCPM / CONSTANTE_MRH).toFixed(3);
+        }
+
+        function getFechaLocal() {
+            const d = new Date();
+            return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+        }
+
+        function render() {
+            if (state.idx >= PUNTOS.length) state.idx = 0;
+            $('point-display').innerText = `📍 Vuelta ${Math.floor(state.rows.length / PUNTOS.length) + 1} - ${PUNTOS[state.idx]}`;
+            
+            if (state.esAdmin) {
+                ['controles-operador', 'btn-reset-admin', 'btn-excel', 'tools-section'].forEach(id => { $(id).classList.remove('hidden'); });
+            } else {
+                ['controles-operador', 'btn-reset-admin', 'btn-excel'].forEach(id => { $(id).classList.add('hidden'); });
+                $('tools-section').classList.remove('hidden');
+            }
+
+            actualizarEstadisticas();
+
+            const headerHtml = `
+                <div class="row table-header">
+                    <div class="col-info">Punto de medición</div>
+                    <div class="col-data">Tasa de exposición a 5 cm</div>
+                    <div class="col-data">Tasa de exposición a 1 m</div>
+                    <div class="col-data">Tasa de conteo a 5 cm</div>
+                    <div class="col-data">Contaminación superficial total</div>
+                </div>
+            `;
+
+            $('rows-container').innerHTML = headerHtml + state.rows.slice().reverse().map(r => `
+                <div class="row ${r.estado}">
+                    <div class="col-info">
+                        <span class="vuelta-badge">V${r.vuelta}</span><strong>${r.punto}</strong>
+                        <br><small>${r.ubicacion || ''}</small>
+                        <span class="timestamp">📅 ${r.fecha} | 🕒 ${r.hora}</span>
+                    </div>
+                    <div class="col-data">${r.mr}<span class="unit-label">mR/h</span></div>
+                    <div class="col-data"><span class="badge-1m ${getClase1m(r.mr_1m)}">${r.mr_1m}</span><span class="unit-label">mR/h</span></div>
+                    <div class="col-data">${r.cpm}<span class="unit-label">CPM</span></div>
+                    <div class="col-data">${r.as_s}<span class="unit-label">Bq/cm²</span></div>
+                </div>
+            `).join('');
+        }
+
+        async function save() {
+            if(!state.esAdmin) return;
+            const rawCPM = parseFloat($('cpm').value) || 0;
+            const rawMR = parseFloat($('mr').value) || 0;
+            
+            const mr_1m = (rawMR * Math.pow((DIST_MEDIDA / DIST_PROYECTADA), 2)).toFixed(2);
+            const as_s = (((Math.max(0, rawCPM - FONDO)) / 60) / (EFICIENCIA * AREA_DETECTOR)).toFixed(3);
+            
+            const nuevoRegistro = {
+                vuelta: Math.floor(state.rows.length / PUNTOS.length) + 1,
+                fecha: getFechaLocal(),
+                hora: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+                punto: PUNTOS[state.idx], 
+                ubicacion: $('ubicacion').value, 
+                mr: rawMR.toFixed(3), 
+                mr_1m: mr_1m, 
+                cpm: Math.floor(rawCPM), 
+                as_s: as_s,
+                estado: as_s > 40 ? 'alto' : as_s > 4 ? 'moderado' : as_s > 0.4 ? 'bajo' : 'normal'
+            };
+
+            // Sincronización con Google Sheets (Nube)
+            fetch(URL_NUBE, {
+                method: 'POST',
+                mode: 'no-cors',
+                body: JSON.stringify(nuevoRegistro)
+            });
+
+            state.rows.push(nuevoRegistro);
+
+            if (state.idx === PUNTOS.length - 1) {
+                state.idx = 0;
+                localStorage.setItem('mn_rows', JSON.stringify(state.rows));
+                localStorage.setItem('mn_idx', state.idx);
+                render();
+                alert("¡Vuelta completada! Sincronizado en la nube.");
+                await exportarExcel();
+            } else {
+                state.idx++;
+                localStorage.setItem('mn_rows', JSON.stringify(state.rows));
+                localStorage.setItem('mn_idx', state.idx);
+            }
+
+            $('mr').value = ''; $('cpm').value = ''; $('ubicacion').value = '';
+            render();
+        }
+
+        function actualizarEstadisticas() {
+            const counts = { normal: 0, bajo: 0, moderado: 0, alto: 0 };
+            state.rows.forEach(r => { if(counts[r.estado] !== undefined) counts[r.estado]++; });
+            ['normal', 'bajo', 'moderado', 'alto'].forEach(l => { if($('count-'+l)) $('count-'+l).innerText = counts[l]; });
+        }
+
+        function accesoConsulta() { state.esAdmin = false; $('auth-section').classList.add('hidden'); $('app-section').classList.remove('hidden'); render(); }
+        function salirApp() { sessionStorage.removeItem('mn_admin_active'); location.reload(); }
+        function resetRuta() { if(confirm("¿Desea borrar todo el historial acumulado?")) { localStorage.clear(); location.reload(); } }
+
+        async function exportarExcel() {
+            const workbook = new ExcelJS.Workbook();
+            const ws = workbook.addWorksheet('Vigilancia');
+            ws.columns = [
+                { header: 'Vuelta', key: 'vuelta', width: 8 }, 
+                { header: 'Fecha', key: 'fecha', width: 12 }, 
+                { header: 'Hora', key: 'hora', width: 10 },
+                { header: 'Punto de medición', key: 'punto', width: 25 }, 
+                { header: 'Ubicación específica', key: 'ubicacion', width: 25 }, 
+                { header: 'Tasa de exposición a 5 cm (mR/h)', key: 'mr', width: 22 }, 
+                { header: 'Tasa de exposición a 1 m (mR/h)', key: 'mr_1m', width: 22 },
+                { header: 'Tasa de conteo a 5 cm (CPM)', key: 'cpm', width: 22 }, 
+                { header: 'Contaminación superficial total (Bq/cm²)', key: 'as_s', width: 25 }, 
+                { header: 'Estado', key: 'estado', width: 15 }
+            ];
+            ws.getRow(1).font = { bold: true };
+            state.rows.forEach(r => ws.addRow({ ...r, estado: r.estado.toUpperCase() }));
+            const buffer = await workbook.xlsx.writeBuffer();
+            const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([buffer])); link.download = `Vigilancia_24Puntos_${getFechaLocal()}.xlsx`; link.click();
+        }
+
+        function exportarImagen() { html2canvas($('captura-zona')).then(canvas => { const link = document.createElement('a'); link.download = `Captura_Vigilancia_${getFechaLocal()}.png`; link.href = canvas.toDataURL(); link.click(); }); }
+
+        window.onload = () => {
+            state.rows = JSON.parse(localStorage.getItem('mn_rows') || '[]');
+            state.idx = parseInt(localStorage.getItem('mn_idx') || '0');
+            if (sessionStorage.getItem('mn_admin_active') === 'true') { state.esAdmin = true; $('auth-section').classList.add('hidden'); $('app-section').classList.remove('hidden'); }
+            render();
+        };
+    </script>
+</body>
+</html>

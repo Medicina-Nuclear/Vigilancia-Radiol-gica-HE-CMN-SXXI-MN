@@ -276,11 +276,45 @@
 
         function exportarImagen() { html2canvas($('captura-zona')).then(canvas => { const link = document.createElement('a'); link.download = `Captura_Vigilancia_${getFechaLocal()}.png`; link.href = canvas.toDataURL(); link.click(); }); }
 
+    async function cargarDatosDesdeNube() {
+            try {
+                const response = await fetch(URL_NUBE);
+                const data = await response.json();
+                
+                if (data && data.length > 1) {
+                    const filasNube = data.slice(1).map(fila => ({
+                        vuelta: fila[0],
+                        fecha: fila[1],
+                        hora: fila[2],
+                        punto: fila[3],
+                        ubicacion: fila[4],
+                        mr: fila[5],
+                        mr_1m: fila[6],
+                        cpm: fila[7],
+                        as_s: fila[8],
+                        estado: fila[9]
+                    }));
+                    
+                    state.rows = filasNube;
+                    render();
+                }
+            } catch (error) {
+                console.error("Error al leer de la nube:", error);
+            }
+        }
+
         window.onload = () => {
             state.rows = JSON.parse(localStorage.getItem('mn_rows') || '[]');
             state.idx = parseInt(localStorage.getItem('mn_idx') || '0');
-            if (sessionStorage.getItem('mn_admin_active') === 'true') { state.esAdmin = true; $('auth-section').classList.add('hidden'); $('app-section').classList.remove('hidden'); }
+            
+            if (sessionStorage.getItem('mn_admin_active') === 'true') { 
+                state.esAdmin = true; 
+                $('auth-section').classList.add('hidden'); 
+                $('app-section').classList.remove('hidden'); 
+            }
+            
             render();
+            cargarDatosDesdeNube(); // Esta línea es la que hace la magia para tus colaboradores
         };
     </script>
 </body>

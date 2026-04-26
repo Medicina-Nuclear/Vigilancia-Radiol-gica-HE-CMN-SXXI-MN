@@ -293,45 +293,57 @@
             }); 
         }
 
-        async function cargarDatosDesdeNube() {
-            try {
-                const response = await fetch(URL_NUBE);
-                const data = await response.json();
-                
-                if (data && data.length > 1) {
-                    const filasNube = data.slice(1).map(fila => {
-                        // Limpieza de Fecha: Si Google manda un objeto Date, lo formateamos
-                        let fechaLimpia = fila[1];
-                        if (fechaLimpia.includes('T')) fechaLimpia = fechaLimpia.split('T')[0].split('-').reverse().join('-');
-                        
-                        // Limpieza de Hora: Tomamos solo HH:mm
-                        let horaLimpia = fila[2];
-                        if (horaLimpia.includes(':')) {
-                            const partes = horaLimpia.split(':');
-                            horaLimpia = `${partes[0].padStart(2, '0')}:${partes[1].padStart(2, '0')}`;
-                        }
+      async function cargarDatosDesdeNube() {
+    try {
+        const response = await fetch(URL_NUBE);
+        const data = await response.json();
+        
+        if (data && data.length > 1) {
+            // 1. Extraemos los datos omitiendo el encabezado
+            let datosSucios = data.slice(1);
 
-                        return {
-                            vuelta: fila[0],
-                            fecha: fechaLimpia,
-                            hora: horaLimpia,
-                            punto: fila[3],
-                            ubicacion: fila[4],
-                            mr: fila[5],
-                            mr_1m: fila[6],
-                            cpm: fila[7],
-                            as_s: fila[8],
-                            estado: fila[9]
-                        };
-                    });
-                    
-                    state.rows = filasNube;
-                    render();
+            // 2. Mapeamos a objetos procesables
+            let filasProcesadas = datosSucios.map(fila => {
+                let fLimpia = fila[1];
+                if (fLimpia && fLimpia.includes('T')) fLimpia = fLimpia.split('T')[0].split('-').reverse().join('-');
+                
+                let hLimpia = fila[2];
+                if (hLimpia && hLimpia.toString().includes(':')) {
+                    const p = hLimpia.split(':');
+                    hLimpia = `${p[0].padStart(2, '0')}:${p[1].padStart(2, '0')}`;
                 }
-            } catch (error) {
-                console.error("Error al leer de la nube:", error);
-            }
+
+                return {
+                    vuelta: parseInt(fila[0]), // Forzamos número para ordenar bien
+                    fecha: fLimpia,
+                    hora: hLimpia,
+                    punto: fila[3],
+                    ubicacion: fila[4],
+                    mr: fila[5],
+                    mr_1m: fila[6],
+                    cpm: fila[7],
+                    as_s: fila[8],
+                    estado: fila[9],
+                    // Creamos una marca de tiempo real para comparar
+                    timestamp_unix: new Date(`${fila[1]} ${fila[2]}`).getTime() 
+                };
+            });
+
+            // 3. ORDENAMIENTO LÓGICO
+            // Primero por número de Vuelta, luego por el tiempo exacto
+            filasProcesadas.sort((a, b) => {
+                if (a.vuelta !== b.vuelta) return a.vuelta - b.vuelta;
+                return a.timestamp_unix - b.timestamp_unix;
+            });
+
+            // 4. Guardamos en el estado y dibujamos
+            state.rows = filasProcesadas;
+            render();
         }
+    } catch (e) { 
+        console.error("Error nube:", e); 
+    }
+}
 
         window.onload = () => {
             state.rows = JSON.parse(localStorage.getItem('mn_rows') || '[]');

@@ -181,7 +181,7 @@
                 </div>
             `;
 
-            $('rows-container').innerHTML = headerHtml + state.rows.slice().reverse().map(r => `
+            $('rows-container').innerHTML = headerHtml + state.rows.map(r => `
                 <div class="row ${r.estado}">
                     <div class="col-info">
                         <span class="vuelta-badge">V${r.vuelta}</span><strong>${r.punto}</strong>
@@ -293,16 +293,13 @@
             }); 
         }
 
-     async function cargarDatosDesdeNube() {
+   async function cargarDatosDesdeNube() {
     try {
         const response = await fetch(URL_NUBE);
         const data = await response.json();
         
-        // Verificamos que haya datos más allá del encabezado
         if (data && data.length > 1) {
-            // .slice(1) para saltar el encabezado que agregaste manualmente
             const registrosNube = data.slice(1).map(fila => {
-                // Limpieza básica de fecha y hora para visualización
                 let fLimpia = fila[1] || '';
                 if (fLimpia.includes('T')) fLimpia = fLimpia.split('T')[0].split('-').reverse().join('-');
                 
@@ -313,7 +310,7 @@
                 }
 
                 return {
-                    vuelta: fila[0], 
+                    vuelta: parseInt(fila[0]), 
                     fecha: fLimpia, 
                     hora: hLimpia,
                     punto: fila[3], 
@@ -326,13 +323,18 @@
                 };
             });
 
-            // IMPORTANTE: Mantenemos el orden exacto de la hoja de cálculo
-            // Si en Google Sheets están en orden, aquí aparecerán en orden.
+            // Sincronizamos el estado local con la nube
             state.rows = registrosNube;
+            // Calculamos el siguiente punto basándonos en cuántos registros hay
+            state.idx = state.rows.length % PUNTOS.length;
+            
+            localStorage.setItem('mn_rows', JSON.stringify(state.rows));
+            localStorage.setItem('mn_idx', state.idx);
+            
             render();
         }
     } catch (e) { 
-        console.error("Error al sincronizar con la nube:", e); 
+        console.error("Error nube:", e); 
     }
 }
 

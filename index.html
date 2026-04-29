@@ -138,7 +138,19 @@
         let state = { idx: 0, rows: [], esAdmin: false };
         const $ = i => document.getElementById(i);
 
-        function login() { if ($('pin_input').value === '0197') { state.esAdmin = true; sessionStorage.setItem('mn_admin_active', 'true'); $('auth-section').classList.add('hidden'); $('app-section').classList.remove('hidden'); render(); } else alert("PIN Incorrecto"); }
+        function login() {
+    // El PIN real es 0197, pero aquí está oculto
+    const secret = "MDE5Nw=="; 
+    if (btoa($('pin_input').value) === secret) {
+        state.esAdmin = true;
+        sessionStorage.setItem('mn_admin_active', 'true');
+        $('auth-section').classList.add('hidden');
+        $('app-section').classList.remove('hidden');
+        render();
+    } else {
+        alert("PIN Incorrecto");
+    }
+}
 
         function getClase1m(v) {
             const val = parseFloat(v);
